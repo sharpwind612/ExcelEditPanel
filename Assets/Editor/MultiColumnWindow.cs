@@ -18,7 +18,7 @@ namespace UnityEditor.ExcelTreeView
         MultiColumnTreeView m_TreeView;
         List<string> m_nameList;   //TODO:暂时当做字符串，后续当成一个索引去查表
         List<ExcelTreeElement> m_excelData;
-        const int m_keyRow = 2; 
+        const int m_keyRow = 1; // start from 0
         const int m_DiscribeRowCount = 3;
         public List<string> nameList
         {
@@ -212,8 +212,8 @@ namespace UnityEditor.ExcelTreeView
             List<ExcelTreeElement> dataList = new List<ExcelTreeElement>();
             dataList.Add(new ExcelTreeElement("root", -1, 0, new string[]{"root"}));
             int index = 0;
-            //从第(m_DiscribeRowCount + 1)行开始读内容
-            for (int i = m_DiscribeRowCount + 1; i < rows; i++)
+            //从第(m_DiscribeRowCount + 1)行开始读内容,从0开始
+            for (int i = m_DiscribeRowCount; i < rows; i++)
             {
                 string[] temp = new string[columns];
                 for (int j = 0; j < columns; j++)
