@@ -30,8 +30,18 @@ namespace UnityEditor.ExcelTreeView
             get { return m_excelData; }
         }
         //MyTreeAsset m_MyTreeAsset;
-        string m_excelPath = "D:/Projects/MultiColumnTreeView/Assets/Data/test.xlsx";
-		[MenuItem("ExcelEditor/Open Panel")]
+        string m_excelPath;// = "D:/Projects/MultiColumnTreeView/Assets/Data/test.xlsx";
+        string excelPath
+        {
+            get {
+                if (m_excelPath == null)
+                    m_excelPath = Application.dataPath + "/Data/test.xlsx";
+                return m_excelPath;
+            }
+            set { m_excelPath = value; }
+        }
+
+        [MenuItem("ExcelEditor/Open Panel")]
 		public static MultiColumnWindow GetWindow ()
 		{
 			var window = GetWindow<MultiColumnWindow>();
@@ -119,7 +129,7 @@ namespace UnityEditor.ExcelTreeView
             { 
                 var style = "miniButton";
                 GUILayout.Label("Please input the excel file path:");
-                m_excelPath = GUILayout.TextField(m_excelPath, GUILayout.Width(400));
+                excelPath = GUILayout.TextField(excelPath, GUILayout.Width(400));
 
                 if (GUILayout.Button("Load Excel", style, GUILayout.Width(80)))
                 {
@@ -184,7 +194,7 @@ namespace UnityEditor.ExcelTreeView
         void GetExcelData()
         {
             Debug.Log("Load Excel Data!!!");
-            DataTable dataTale = EditorTool.ExcelHelper.ReadExcel(m_excelPath);
+            DataTable dataTale = EditorTool.ExcelHelper.ReadExcel(excelPath);
             if (dataTale == null)
             {
                 return;
