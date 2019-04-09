@@ -4,11 +4,10 @@ using System.Data;
 using UnityEditor.Callbacks;
 using UnityEditor.IMGUI.Controls;
 using UnityEngine;
-
+using EditorTool;
 
 namespace UnityEditor.ExcelTreeView
 {
-
 	class MultiColumnWindow : EditorWindow
 	{
 		[NonSerialized] bool m_Initialized;
@@ -18,6 +17,7 @@ namespace UnityEditor.ExcelTreeView
         MultiColumnTreeView m_TreeView;
         List<string> m_nameList;   //TODO:暂时当做字符串，后续当成一个索引去查表
         List<ExcelTreeElement> m_excelData;
+        DataTable m_dataTable; //缓存读取excel表格后的dataTable
         const int m_keyRow = 1; // start from 0
         const int m_DiscribeRowCount = 3;
         public List<string> nameList
@@ -119,7 +119,7 @@ namespace UnityEditor.ExcelTreeView
             FilePathBar(filePathRect);
             SearchBar(toolbarRect);
 			DoTreeView(multiColumnTreeViewRect);
-			BottomToolBar(bottomToolbarRect);
+			//BottomToolBar(bottomToolbarRect);
 		}
 
         void FilePathBar(Rect rect)
@@ -133,8 +133,11 @@ namespace UnityEditor.ExcelTreeView
 
                 if (GUILayout.Button("Load Excel", style, GUILayout.Width(80)))
                 {
-                    GetExcelData();
-
+                    LoadExcelData();
+                }
+                if (GUILayout.Button("Save to Excel", style, GUILayout.Width(100)))
+                {
+                    SaveExcelData();
                 }
                 GUILayout.FlexibleSpace();
             }
@@ -191,10 +194,13 @@ namespace UnityEditor.ExcelTreeView
         }
 
         //Load excel data from file
-        void GetExcelData()
+        void LoadExcelData()
         {
-            Debug.Log("Load Excel Data!!!");
-            DataTable dataTale = EditorTool.ExcelHelper.ReadExcel(excelPath);
+            Debug.Log("Start load excel data!!!");
+            //使用NPOI库来读取Excel
+            //DataTable dataTale = EditorTool.ExcelHelper.ReadExcel(excelPath);
+            NPOIExcelHelper excelHelper = new NPOIExcelHelper(excelPath);
+            DataTable dataTale = excelHelper.ExcelToDataTable("Sheet1", true);
             if (dataTale == null)
             {
                 return;
@@ -223,7 +229,31 @@ namespace UnityEditor.ExcelTreeView
                 dataList.Add(new ExcelTreeElement(temp[0], 0, ++index, temp));
             }
             m_excelData = dataList;
+            m_dataTable = dataTale;
             m_Initialized = false;
+            Debug.Log("Load excel data success!!!");
+        }
+
+        //Save excel data to file
+        void SaveExcelData()
+        {
+            Debug.Log("Start save excel data!!!");
+            //使用NPOI库来保存Excel
+            NPOIExcelHelper excelHelper = new NPOIExcelHelper(excelPath);
+            excelHelper.DataTableToExcel(m_dataTable, "Sheet1", false);
+            Debug.Log("Save excel data success!!!");
+        }
+
+        public void ChangeDataTable(int rowIndex, int columnIndex, string value)
+        {
+            if (m_dataTable.Rows[rowIndex + m_DiscribeRowCount] != null)
+            {
+                if (m_dataTable.Rows[rowIndex + m_DiscribeRowCount][columnIndex] != null)
+                {
+                    //Debug.Log(value);
+                    m_dataTable.Rows[rowIndex + m_DiscribeRowCount][columnIndex] = value;
+                }
+            }
         }
     }
 

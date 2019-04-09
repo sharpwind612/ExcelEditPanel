@@ -112,6 +112,12 @@ namespace UnityEditor.ExcelTreeView
             {
                 string value = item.data.data[index - 1];
                 item.data.data[index - 1] = GUI.TextField(cellRect, value);
+                //表格内容有变化，需要重新写入DataTable
+                if (item.data.data[index - 1].CompareTo(value) != 0)
+                {
+                    m_parent.ChangeDataTable(args.row, index, item.data.data[index - 1]);
+                    Debug.Log("Content Changed!!!");
+                }
             }
         }
 
