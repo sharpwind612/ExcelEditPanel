@@ -116,6 +116,8 @@ namespace UnityEditor.ExcelTreeView
                 if (item.data.data[index - 1].CompareTo(value) != 0)
                 {
                     m_parent.ChangeDataTable(args.row, index, item.data.data[index - 1]);
+                    //item.data.data[index] = item.data.data[index - 1];
+                    //m_parent.ChangeDataTable(args.row, index + 1, item.data.data[index]);
                     Debug.Log("Content Changed!!!");
                 }
             }
@@ -154,7 +156,19 @@ namespace UnityEditor.ExcelTreeView
 
         protected override bool CanMultiSelect(TreeViewItem item)
         {
-            return true;
+            return false;
+        }
+
+
+        protected override void SingleClickedItem(int id)
+        {
+            Debug.Log("SingleClickedItem:" + id);
+            m_parent.SingleClickedItem(id);
+        }
+
+        protected override void ContextClickedItem(int id)
+        {
+            Debug.Log("ContextClickedItem:" + id);
         }
 
         public static MultiColumnHeaderState CreateDefaultMultiColumnHeaderState(float treeViewWidth, List<string> nameList)
@@ -181,7 +195,7 @@ namespace UnityEditor.ExcelTreeView
             {
                 var item = new MultiColumnHeaderState.Column
                 {
-                    headerContent = new GUIContent("表格待加载", "字段说明"),
+                    headerContent = new GUIContent("数据待加载", "字段说明"),
                     headerTextAlignment = TextAlignment.Left,
                     sortedAscending = true,
                     sortingArrowAlignment = TextAlignment.Left,

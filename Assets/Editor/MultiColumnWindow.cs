@@ -12,9 +12,12 @@ namespace UnityEditor.ExcelTreeView
 	{
 		[NonSerialized] bool m_Initialized;
 		[SerializeField] TreeViewState m_TreeViewState; // Serialized in the window layout file so it survives assembly reloading
-		[SerializeField] MultiColumnHeaderState m_MultiColumnHeaderState;
-		SearchField m_SearchField;
+        [SerializeField] TreeViewState m_TreeViewState2;
+        [SerializeField] MultiColumnHeaderState m_MultiColumnHeaderState;
+        [SerializeField] MultiColumnHeaderState m_MultiColumnHeaderState2;
+        SearchField m_SearchField;
         MultiColumnTreeView m_TreeView;
+        MultiColumnTreeView m_TreeView2;
         List<string> m_nameList;   //TODO:暂时当做字符串，后续当成一个索引去查表
         List<ExcelTreeElement> m_excelData;
         DataTable m_dataTable; //缓存读取excel表格后的dataTable
@@ -63,10 +66,20 @@ namespace UnityEditor.ExcelTreeView
 
         Rect multiColumnTreeViewRect
 		{
-			get { return new Rect(20, 50, position.width-40, position.height-80); }
+			get { return new Rect(20, 50, position.width-40, 200); }
 		}
 
-		Rect bottomToolbarRect
+        Rect multiColumnTreeViewRect2
+        {
+            get { return new Rect(20, 270, position.width/2 - 30, 200); }
+        }
+
+        Rect multiColumnTreeViewRect3
+        {
+            get { return new Rect(position.width / 2 + 10, 270, position.width / 2 - 40, 200); }
+        }
+
+        Rect bottomToolbarRect
 		{
 			get { return new Rect(20f, position.height - 25f, position.width - 40f, 16f); }
 		}
@@ -109,6 +122,36 @@ namespace UnityEditor.ExcelTreeView
                 m_SearchField = new SearchField();
                 m_SearchField.downOrUpArrowKeyPressed += m_TreeView.SetFocusAndEnsureSelectedItem;
 
+                //普通字段框
+                if (m_TreeViewState2 == null)
+                    m_TreeViewState2 = new TreeViewState();
+
+                bool firstInit2 = m_MultiColumnHeaderState2 == null;
+
+                List<string> _nameList = new List<string>();
+                var headerState2 = MultiColumnTreeView.CreateDefaultMultiColumnHeaderState(multiColumnTreeViewRect2.width, _nameList);
+                if (MultiColumnHeaderState.CanOverwriteSerializedFields(m_MultiColumnHeaderState2, headerState2))
+                    MultiColumnHeaderState.OverwriteSerializedFields(m_MultiColumnHeaderState2, headerState2);
+                m_MultiColumnHeaderState2 = headerState2;
+
+                var multiColumnHeader2 = new MyMultiColumnHeader(headerState2);
+                if (firstInit2)
+                    multiColumnHeader2.ResizeToFit();
+
+                TreeModel<ExcelTreeElement> treeModel2;
+                treeModel2 = new TreeModel<ExcelTreeElement>(GetEmptyData());
+                //if (m_excelData == null)
+                //{
+                //    treeModel2 = new TreeModel<ExcelTreeElement>(GetEmptyData());
+                //}
+                //else
+                //{
+                //    treeModel2 = new TreeModel<ExcelTreeElement>(m_excelData);
+                //}
+
+                m_TreeView2 = new MultiColumnTreeView(m_TreeViewState2, multiColumnHeader2, treeModel2, this);
+
+
                 m_Initialized = true;
             }
         }
@@ -119,8 +162,10 @@ namespace UnityEditor.ExcelTreeView
             FilePathBar(filePathRect);
             SearchBar(toolbarRect);
 			DoTreeView(multiColumnTreeViewRect);
-			//BottomToolBar(bottomToolbarRect);
-		}
+            DoTreeView2(multiColumnTreeViewRect2);
+            //DoTreeView3(multiColumnTreeViewRect3);
+            BottomToolBar(bottomToolbarRect);
+        }
 
         void FilePathBar(Rect rect)
         {
@@ -154,7 +199,17 @@ namespace UnityEditor.ExcelTreeView
 			m_TreeView.OnGUI(rect);
 		}
 
-		void BottomToolBar (Rect rect)
+        void DoTreeView2(Rect rect)
+        {
+            m_TreeView2.OnGUI(rect);
+        }
+
+        void DoTreeView3(Rect rect)
+        {
+            m_TreeView2.OnGUI(rect);
+        }
+
+        void BottomToolBar (Rect rect)
 		{
 			GUILayout.BeginArea (rect);
 
@@ -162,17 +217,21 @@ namespace UnityEditor.ExcelTreeView
 			{
 
 				var style = "miniButton";
-				if (GUILayout.Button("Expand All", style))
-				{
-					treeView.ExpandAll ();
-				}
+                if (GUILayout.Button("加载技能预览场景", style))
+                {
+                    
+                }
+                //if (GUILayout.Button("Expand All", style))
+                //{
+                //	treeView.ExpandAll ();
+                //}
 
-				if (GUILayout.Button("Collapse All", style))
-				{
-					treeView.CollapseAll ();
-				}
+                //if (GUILayout.Button("Collapse All", style))
+                //{
+                //	treeView.CollapseAll ();
+                //}
 
-				GUILayout.FlexibleSpace();
+                GUILayout.FlexibleSpace();
 
 				//GUILayout.Label (m_MyTreeAsset != null ? AssetDatabase.GetAssetPath (m_MyTreeAsset) : string.Empty);
 
@@ -254,6 +313,16 @@ namespace UnityEditor.ExcelTreeView
                     m_dataTable.Rows[rowIndex + m_DiscribeRowCount][columnIndex] = value;
                 }
             }
+        }
+
+        public void SingleClickedItem(int id)
+        {
+            string str = "";
+            for (int i = 0; i < m_dataTable.Columns.Count; ++i)
+            {
+                str = string.Format("{0}  {1}", str, m_dataTable.Rows[id + m_DiscribeRowCount - 1][i].ToString());
+            }
+            Debug.Log(str);
         }
     }
 
