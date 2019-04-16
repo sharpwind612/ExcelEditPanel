@@ -47,7 +47,7 @@ namespace UnityEditor
 
         Rect dropdownButtonRect
         {
-            get { return new Rect(20, 265, position.width / 2 - 40, 25); }
+            get { return new Rect(20, 265, position.width - 40, 25); }
         }
 
         int selectedType = 1;
@@ -143,32 +143,14 @@ namespace UnityEditor
             {
                 AnimationClip fbxObj = AssetDatabase.LoadAssetAtPath<AnimationClip>("Assets/Data/Emotes--RussianDance.anim.fbx");                     
                 Selection.activeObject = fbxObj;
-
-                //Set certain model to the AvatarPreview window
-                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Data/Robot_A.fbx");
-                Type t = typeof(EditorWindow).Assembly.GetType("UnityEditor.AnimationClipEditor");                
-                System.Reflection.MethodInfo[] methodInfos = t.GetMethods();
-                //EditorWindow window = EditorWindow.GetWindow(t);
             }
 
-            if (GUILayout.Button("Get Window"))
+            //Set certain model to the AvatarPreview window 
+            if (GUILayout.Button("Set Model"))
             {
-                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Data/Robot_A.fbx");
-                Type t = typeof(EditorWindow).Assembly.GetType("UnityEditor.AvatarPreview");
-                BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
-                MethodInfo[] methodInfos = t.GetMethods(flags);
-                var setPreviewFunc = t.GetMethod("SetPreview", flags);
-                //m.Invoke()
-                Type previewWindowType = typeof(EditorWindow).Assembly.GetType("UnityEditor.PreviewWindow");
-                EditorWindow previewWindow = EditorWindow.GetWindow(previewWindowType);
-                Type inspectorWindowType = typeof(EditorWindow).Assembly.GetType("UnityEditor.InspectorWindow");
-                EditorWindow inspectorWindow = EditorWindow.GetWindow(inspectorWindowType);
-
-                //IPreviewable[] editorsWithPreviews = GetEditorsWithPreviews(tracker.activeEditors);
-                //IPreviewable editor = GetEditorThatControlsPreview(editorsWithPreviews);
-                //var member = previewWindowType.GetField("m_PreviewWindow", flags).GetValue(previewWindow);
-                setPreviewFunc.Invoke(previewWindow, new System.Object[] {prefab});
+                SetSelectModel("Assets/Data/Robot_A.fbx");  
             }
+
             EditorGUILayout.EndHorizontal();
             GUILayout.EndArea();
         }
@@ -192,6 +174,37 @@ namespace UnityEditor
 			EditorWindow.GetWindow<PolymophismWindow>();
 		}
 
-	} // class TestWindow5
+        void SetSelectModel(string modelPath)
+        {
+            try
+            {
+                BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
 
-} // namespace SerializationTest.Test5
+                Type inspectorWindowType = typeof(EditorWindow).Assembly.GetType("UnityEditor.InspectorWindow");
+                EditorWindow inspectorWindow = EditorWindow.GetWindow(inspectorWindowType);
+
+                var getEditorsWithPreviews = inspectorWindowType.GetMethod("GetEditorsWithPreviews", flags);
+                ActiveEditorTracker tracker = inspectorWindowType.GetMethod("get_tracker", flags).Invoke(inspectorWindow, new System.Object[] { }) as ActiveEditorTracker;
+                if (getEditorsWithPreviews == null || tracker == null)
+                    return;
+                var editorsWithPreviews = getEditorsWithPreviews.Invoke(inspectorWindow, new System.Object[] { tracker.activeEditors });
+
+                var getEditorThatControlsPreview = inspectorWindowType.GetMethod("GetEditorThatControlsPreview", flags);
+                var editor = getEditorThatControlsPreview.Invoke(inspectorWindow, new System.Object[] { editorsWithPreviews });
+                Type animationClipEditorType = typeof(EditorWindow).Assembly.GetType("UnityEditor.AnimationClipEditor");
+                var avatarPreview = animationClipEditorType.GetField("m_AvatarPreview", flags).GetValue(editor);
+
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+                Type avatarPreviewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.AvatarPreview");
+                var setPreviewFunc = avatarPreviewType.GetMethod("SetPreview", flags);
+                setPreviewFunc.Invoke(avatarPreview, new System.Object[] { prefab });
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError(exception);
+            }
+        }
+
+    } 
+
+} 
