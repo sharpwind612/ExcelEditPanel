@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using SerializationTest.Common;
+using System.Reflection;
 
-namespace SerializationTest.Test5
+namespace UnityEditor
 {
-
 	[Serializable]
 	public class Zoo {
 		public List<Animal> animals = new List<Animal>();
@@ -51,6 +51,8 @@ namespace SerializationTest.Test5
         }
 
         int selectedType = 1;
+
+        int selectedOption = 1;
 
         string[] m_Type = {
             "Type1",
@@ -125,16 +127,49 @@ namespace SerializationTest.Test5
             GUILayout.EndArea();
 
             GUILayout.BeginArea(dropdownButtonRect, GUI.skin.box);
-            
-            if (EditorGUI.DropdownButton(dropdownbuttonRect, new GUIContent(m_Type[selectedType]), FocusType.Passive))
+            EditorGUILayout.BeginHorizontal();
+            if (EditorGUILayout.DropdownButton(new GUIContent(m_Type[selectedType]), FocusType.Passive))
             {
                 GenericMenu menu = new GenericMenu();
                 for (int i=0;i < m_Type.Length;i++)
                 {
                     menu.AddItem(new GUIContent(m_Type[i]), false, ItemCallBack, i);
                 }
-                menu.DropDown(dropdownbuttonRect);
+                menu.ShowAsContext();
             }
+            //GUILayout.FlexibleSpace();
+            this.selectedOption = EditorGUILayout.Popup("Popup", (int)this.selectedOption, new string[] { "s1", "s2", "s3" });
+            if (GUILayout.Button("Select Animation"))
+            {
+                AnimationClip fbxObj = AssetDatabase.LoadAssetAtPath<AnimationClip>("Assets/Data/Emotes--RussianDance.anim.fbx");                     
+                Selection.activeObject = fbxObj;
+
+                //Set certain model to the AvatarPreview window
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Data/Robot_A.fbx");
+                Type t = typeof(EditorWindow).Assembly.GetType("UnityEditor.AnimationClipEditor");                
+                System.Reflection.MethodInfo[] methodInfos = t.GetMethods();
+                //EditorWindow window = EditorWindow.GetWindow(t);
+            }
+
+            if (GUILayout.Button("Get Window"))
+            {
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Data/Robot_A.fbx");
+                Type t = typeof(EditorWindow).Assembly.GetType("UnityEditor.AvatarPreview");
+                BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+                MethodInfo[] methodInfos = t.GetMethods(flags);
+                var setPreviewFunc = t.GetMethod("SetPreview", flags);
+                //m.Invoke()
+                Type previewWindowType = typeof(EditorWindow).Assembly.GetType("UnityEditor.PreviewWindow");
+                EditorWindow previewWindow = EditorWindow.GetWindow(previewWindowType);
+                Type inspectorWindowType = typeof(EditorWindow).Assembly.GetType("UnityEditor.InspectorWindow");
+                EditorWindow inspectorWindow = EditorWindow.GetWindow(inspectorWindowType);
+
+                //IPreviewable[] editorsWithPreviews = GetEditorsWithPreviews(tracker.activeEditors);
+                //IPreviewable editor = GetEditorThatControlsPreview(editorsWithPreviews);
+                //var member = previewWindowType.GetField("m_PreviewWindow", flags).GetValue(previewWindow);
+                setPreviewFunc.Invoke(previewWindow, new System.Object[] {prefab});
+            }
+            EditorGUILayout.EndHorizontal();
             GUILayout.EndArea();
         }
 
