@@ -13,6 +13,7 @@ namespace UnityEditor.ExcelTreeView
         const float kToggleWidth = 18f;
         public bool showControls = true;
         MultiColumnWindow m_parent;
+        //public int selectedIndex = -1;
 
         //static Texture2D[] s_TestIcons =
         //{
@@ -111,15 +112,40 @@ namespace UnityEditor.ExcelTreeView
             else
             {
                 string value = item.data.data[index - 1];
-                item.data.data[index - 1] = GUI.TextField(cellRect, value);
-                //表格内容有变化，需要重新写入DataTable
-                if (item.data.data[index - 1].CompareTo(value) != 0)
+                //选中变为不可编辑
+                var selections = GetSelection();
+                if (selections.Count != 0 && selections[0] == item.id)
                 {
-                    m_parent.ChangeDataTable(args.row, index, item.data.data[index - 1]);
-                    //item.data.data[index] = item.data.data[index - 1];
-                    //m_parent.ChangeDataTable(args.row, index + 1, item.data.data[index]);
-                    Debug.Log("Content Changed!!!");
+                    GUI.Label(cellRect, value);
                 }
+                else
+                {
+                    item.data.data[index - 1] = GUI.TextField(cellRect, value);
+                    //表格内容有变化，需要重新写入DataTable
+                    if (item.data.data[index - 1].CompareTo(value) != 0)
+                    {
+                        m_parent.ChangeDataTable(args.row, index, item.data.data[index - 1]);
+                        //item.data.data[index] = item.data.data[index - 1];
+                        //m_parent.ChangeDataTable(args.row, index + 1, item.data.data[index]);
+                        Debug.Log("Content Changed!!!");
+                    }
+                }
+            }
+        }
+
+        public void UpdateContent(int columnIndex, string value)
+        {
+            var rowIndex = GetSelection()[0];
+            var rows = GetRows();
+            TreeViewItem<ExcelTreeElement> item = null;
+            for (int i = 0; i < rows.Count; ++i)
+            {
+                if (rows[i].id == rowIndex)
+                    item = (TreeViewItem<ExcelTreeElement>)rows[i];
+            }
+            if (item != null)
+            {
+                item.data.data[columnIndex - 1] = value;
             }
         }
 
@@ -164,6 +190,7 @@ namespace UnityEditor.ExcelTreeView
         {
             Debug.Log("SingleClickedItem:" + id);
             m_parent.SingleClickedItem(id);
+            //selectedIndex = id;
         }
 
         protected override void ContextClickedItem(int id)

@@ -105,8 +105,9 @@ namespace EditorTool
         /// </summary>
         /// <param name="sheetName">excel工作薄sheet的名称</param>
         /// <param name="isFirstRowColumn">第一行是否是DataTable的列名</param>
+        /// <param name="firstRowIndex">第一行的序号</param>
         /// <returns>返回的DataTable</returns>
-        public DataTable ExcelToDataTable(string sheetName, bool isFirstRowColumn)
+        public DataTable ExcelToDataTable(string sheetName, bool isFirstRowColumn, int firstRowIndex)
         {
             ISheet sheet = null;
             DataTable data = new DataTable();
@@ -135,7 +136,7 @@ namespace EditorTool
                 {
                     //这里的表格默认第一行为类型，第二行为字段名，如果不是可以做相应调整
                     //Note:这里一定要先设置Column的内容，否则后面new出来的DataRow长度是0，无法正常赋值
-                    IRow firstRow = sheet.GetRow(1);
+                    IRow firstRow = sheet.GetRow(firstRowIndex);
                     int cellCount = firstRow.LastCellNum; //一行最后一个cell的编号 即总的列数
 
                     if (isFirstRowColumn)

@@ -27,7 +27,7 @@ public class NPOITest : MonoBehaviour
         {
             using (NPOIExcelHelper excelHelper = new NPOIExcelHelper(file))
             {
-                DataTable dt = excelHelper.ExcelToDataTable("Sheet1", true);               
+                DataTable dt = excelHelper.ExcelToDataTable("Sheet1", true, 1);               
                 Debug.Log("Load excel file success!");
                 EditDataTable(ref dt);
                 PrintData(dt);
