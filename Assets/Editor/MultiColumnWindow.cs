@@ -40,17 +40,30 @@ namespace UnityEditor.ExcelTreeView
         }
         Dictionary<string, FieldInfo> m_fieldDict;
 
-        struct EnumInfo {
-            public string name;
-            public int value;
+        struct EnumInfo {           
+            public int key;
+            public string value;
 
-            public EnumInfo(string _name,int _value)
+            public EnumInfo(int _key,string _value)
             {
-                name = _name;
+                key = _key;
                 value = _value;
             }
         }
         Dictionary<string, Dictionary<int,EnumInfo>> m_fieldEnumDict;
+
+        //表达式部分枚举类型
+        Dictionary<string, string> m_targetTypeDict; //目标类型枚举
+        struct ExpressionInfo
+        {
+            public string name;
+            public string describe;
+            public int paramNumber;
+            public string[] paramDescribe;
+            public int[] paramType; //0表示一般字段，其他数字表示枚举对应id
+        }
+        Dictionary<string, ExpressionInfo> m_expressionTypeDict; //表达式类型枚举
+        Dictionary<int, Dictionary<int, EnumInfo>> m_paramEnumDict; //参数枚举类型
 
         //int m_selectedId;
         const int m_keyRow = 1; // start from 0
@@ -209,6 +222,7 @@ namespace UnityEditor.ExcelTreeView
                 if (GUILayout.Button("Load Excel", style, GUILayout.Width(80)))
                 {
                     LoadFieldRuleData();
+                    LoadExpressionData();
                 }
                 if (m_normalList == null)
                     GUILayout.Label("未加载规则文件!");
@@ -351,7 +365,7 @@ namespace UnityEditor.ExcelTreeView
             }
             int columns = dataTale.Columns.Count;
             int rows = dataTale.Rows.Count;
-            //取当做key的一行作为名字
+
             m_fieldDict = new Dictionary<string, FieldInfo>();
             m_fieldEnumDict = new Dictionary<string, Dictionary<int, EnumInfo>>();
             m_normalList = new List<string>();
@@ -360,14 +374,6 @@ namespace UnityEditor.ExcelTreeView
 
             DataRow dataRow;
             FieldInfo fieldInfo;
-            //struct FieldInfo
-            //{
-            //    string name;
-            //    int type;
-            //    string describe;
-            //    int state;
-            //    bool bIsEnum;
-            //}
             for (int i = 1; i < rows; i++)
             {
                 dataRow = dataTale.Rows[i];
@@ -390,10 +396,10 @@ namespace UnityEditor.ExcelTreeView
                         enumDict = new Dictionary<int, EnumInfo>();
                         m_fieldEnumDict.Add(fieldInfo.name, enumDict);
                     }
-                    string enum_name = dataRow[5].ToString();
-                    int enum_value = int.Parse(dataRow[4].ToString());
-                    EnumInfo info = new EnumInfo(enum_name, enum_value);
-                    enumDict.Add(enum_value, info);
+                    int enum_key = int.Parse(dataRow[4].ToString());
+                    string enum_value = dataRow[5].ToString();
+                    EnumInfo info = new EnumInfo(enum_key, enum_value);
+                    enumDict.Add(enum_key, info);
                 }
 
                 if (m_fieldDict.ContainsKey(fieldInfo.name) == false)
@@ -410,6 +416,88 @@ namespace UnityEditor.ExcelTreeView
 
             Debug.Log("Load field rule success!!!");
         }
+
+        //读取表达式枚举数据
+        void LoadExpressionData()
+        {
+            Debug.Log("Start load expression data!!!");
+            //使用NPOI库来读取Excel
+            NPOIExcelHelper excelHelper = new NPOIExcelHelper(fieldRulePath);
+            DataTable dataTale = excelHelper.ExcelToDataTable("Sheet2", true, 0);
+            if (dataTale == null)
+            {
+                return;
+            }
+            int columns = dataTale.Columns.Count;
+            int rows = dataTale.Rows.Count;
+
+            m_targetTypeDict = new Dictionary<string, string>();
+            m_expressionTypeDict = new Dictionary<string, ExpressionInfo>();
+            m_paramEnumDict = new Dictionary<int, Dictionary<int, EnumInfo>>();
+            //struct ExpressionInfo
+            //{
+            //    public string name;
+            //    public string describe;
+            //    public int paramNumber;
+            //    public string[] paramDescribe;
+            //    public int[] paramType; //0表示一般字段，其他数字表示枚举对应id
+            //}
+            DataRow dataRow;
+            int dataType = 0;
+            for (int i = 1; i < rows; i++)
+            {
+                dataRow = dataTale.Rows[i];
+                dataType = int.Parse(dataRow[0].ToString());
+                //如果是目标类型枚举
+                if (dataType == 1)
+                {
+                    string targetkey = dataRow[1].ToString();
+                    string targetName = dataRow[2].ToString();
+                    m_targetTypeDict.Add(targetkey, targetName);
+                }
+                else if (dataType == 2)
+                {
+                    var expressionInfo = new ExpressionInfo();
+                    expressionInfo.name = dataRow[1].ToString();
+                    expressionInfo.describe = dataRow[2].ToString();
+                    expressionInfo.paramNumber = int.Parse(dataRow[3].ToString());
+                    if (dataRow[4].ToString() == "")
+                    {
+                        expressionInfo.paramDescribe = new string[0]{};
+                    }
+                    else
+                    {
+                        expressionInfo.paramDescribe = dataRow[4].ToString().Split('#');
+                    }
+                    if (dataRow[5].ToString() == "")
+                    {
+                        expressionInfo.paramType = new int[0]{};
+                    }
+                    else
+                    {
+                        expressionInfo.paramType = Array.ConvertAll(dataRow[5].ToString().Split('#'), int.Parse);
+                    }
+                    m_expressionTypeDict.Add(expressionInfo.name, expressionInfo);
+                }
+                else
+                {
+                    //取到对应枚举id的字典
+                    Dictionary<int, EnumInfo> enumDict;
+                    if (m_paramEnumDict.TryGetValue(dataType, out enumDict) == false)
+                    {
+                        enumDict = new Dictionary<int, EnumInfo>();
+                        m_paramEnumDict.Add(dataType, enumDict);
+                    }
+                    int enum_key = int.Parse(dataRow[1].ToString());
+                    string enum_value = dataRow[2].ToString();
+                    EnumInfo info = new EnumInfo(enum_key, enum_value);
+                    enumDict.Add(enum_key, info);
+                }
+            }
+
+            Debug.Log("Load expression success!!!");
+        }
+
 
         public void ChangeDataTable(int rowIndex, int columnIndex, string value)
         {
@@ -496,27 +584,17 @@ namespace UnityEditor.ExcelTreeView
                     {
                         var enumDict = m_fieldEnumDict[name];
                         var value = int.Parse(m_selectedData[i].ToString());
-                        if (EditorGUILayout.DropdownButton(new GUIContent(enumDict[value].name), FocusType.Passive))
+                        if (EditorGUILayout.DropdownButton(new GUIContent(enumDict[value].value), FocusType.Passive))
                         {
                             GenericMenu menu = new GenericMenu();
-                            //for (int j = 0; j < enumDict.Count; j++)
-                            //{
-                            //    var info = new ClickInfo
-                            //    {
-                            //        index = i,
-                            //        type = j
-                            //    };
-                            //    menu.AddItem(new GUIContent(m_Type[j]), false, ItemCallBack, info);
-                            //}
-
                             foreach (KeyValuePair<int, EnumInfo> kvp in enumDict)
                             {
                                 var info = new ClickInfo
                                 {
                                     index = i,
-                                    type = kvp.Value.value
+                                    type = kvp.Value.key
                                 };
-                                menu.AddItem(new GUIContent(kvp.Value.name), false, ItemCallBack, info);
+                                menu.AddItem(new GUIContent(kvp.Value.value), false, ItemCallBack, info);
                             }
                             //menu.DropDown(GUILayoutUtility.GetLastRect());
                             menu.ShowAsContext();
@@ -672,14 +750,11 @@ namespace UnityEditor.ExcelTreeView
             }
         }
 
-        bool fold = false;
-
-
         void DrawExpressionZone()
         {
             GUI.Label(expressionLabelRect, "表达式配置");
             EditorGUI.DrawRect(expressionZoneRect, new Color(0.2f, 0.2f, 0.2f));
-            if (m_selectedData != null && m_expressionDict != null)
+            if (m_selectedData != null && m_expressionDict != null && m_paramEnumDict != null)
             {
                 if (expFoldList == null)
                 {
@@ -690,7 +765,7 @@ namespace UnityEditor.ExcelTreeView
                     }
                 }
                 var contentRect = expressionContentRect;
-                contentRect.height = 200;
+                contentRect.height = 300;
                 //contentRect.height = (m_expressionList.Count + 1) * 34;
                 //contentRect.width = 85 * 11;
                 expressionSp = GUI.BeginScrollView(expressionZoneRect, expressionSp, contentRect);
@@ -709,84 +784,183 @@ namespace UnityEditor.ExcelTreeView
                     var fieldInfo = m_fieldDict[name];
                     //EditorGUILayout.BeginHorizontal();
                     oldStr = m_selectedData[i].ToString();
+                    bool bHaveFormula = (oldStr[0] == '\"');
                     EditorGUILayout.BeginVertical(Styles.categoryBox);
-                    //EditorGUILayout.LabelField(fieldInfo.describe, GUILayout.Width(80));
-                    //if (i + 1 > expFoldList.Count)
-                    //{
-                    //    expFoldList.Add(false);
-                    //}
-
+                    if (bHaveFormula == true)
+                    {
+                        oldStr = oldStr.TrimStart('\"');
+                        oldStr = oldStr.TrimEnd('\"');
+                    }
                     m_expressionDict[name] = EditorGUILayout.Foldout(m_expressionDict[name], fieldInfo.describe);
                     if (m_expressionDict[name])
-                    {
-                        EditorGUILayout.LabelField("自由和谐民主富强");
-                        EditorGUILayout.LabelField("自由和谐民主富强");
-                        EditorGUILayout.LabelField("自由和谐民主富强");
+                    {     
+                        var expressionList = oldStr.Split('#');
+                        for (int j = 0; j < expressionList.Length; j++)
+                        {
+                            //处理具体一条表达式显示
+                            string str = expressionList[j];
+                            //找到关键字符的index
+                            int dotIndex = str.IndexOf('.');
+                            int leftBracketIndex = str.IndexOf('(');
+                            int rightBracketIndex = str.IndexOf(')');
+                            EditorGUILayout.BeginHorizontal();
+                            //类型下拉框选择
+                            string targetTypeStr = "";
+                            if (dotIndex != -1)
+                            {
+                                targetTypeStr = str.Substring(0, dotIndex);
+                                if(bHaveFormula)
+                                    targetTypeStr = targetTypeStr.TrimStart('\"');
+                            }
+                            if (m_targetTypeDict.ContainsKey(targetTypeStr))
+                            {
+                                if (EditorGUILayout.DropdownButton(new GUIContent(m_targetTypeDict[targetTypeStr]), FocusType.Passive, GUILayout.Width(80)))
+                                {
+                                    GenericMenu menu = new GenericMenu();
+                                    foreach (KeyValuePair<string, string> kvp in m_targetTypeDict)
+                                    {
+                                        var info = new ExpressionClickInfo
+                                        {
+                                            index = i,
+                                            expressionIndex = j,
+                                            oldPartStr = targetTypeStr,
+                                            newPartStr = kvp.Key
+                                        };
+                                        menu.AddItem(new GUIContent(kvp.Value), false, TargetCallBack, info);
+                                    }
+                                    menu.ShowAsContext();
+                                }
+                            }
+                            else
+                            {
+                                EditorGUILayout.LabelField("未知目标类型:" + targetTypeStr, GUILayout.Width(150));
+                            }
+                            //函数类型选择
+                            string expressionStr = "";
+                            if (dotIndex != -1)
+                            {
+                                expressionStr = str.Substring(dotIndex + 1, leftBracketIndex - dotIndex - 1);
+                            }
+                            else
+                            {
+                                expressionStr = str.Substring(0, leftBracketIndex);
+                                if (bHaveFormula)
+                                    expressionStr = expressionStr.TrimStart('\"');
+                            }
+
+                            if (m_expressionTypeDict.ContainsKey(expressionStr))
+                            {
+                                if (EditorGUILayout.DropdownButton(new GUIContent(m_expressionTypeDict[expressionStr].describe), FocusType.Passive, GUILayout.Width(100)))
+                                {
+                                    GenericMenu menu = new GenericMenu();
+                                    foreach (KeyValuePair<string, ExpressionInfo> kvp in m_expressionTypeDict)
+                                    {
+                                        var info = new ExpressionClickInfo
+                                        {
+                                            index = i,
+                                            expressionIndex = j,
+                                            oldPartStr = expressionStr,
+                                            newPartStr = kvp.Key
+                                        };
+                                        menu.AddItem(new GUIContent(kvp.Value.describe), false, ExpressionCallBack, info);
+                                    }
+                                    menu.ShowAsContext();
+                                }
+                            }
+                            else
+                            {
+                                EditorGUILayout.LabelField("未知函数类型:" + expressionStr, GUILayout.Width(200));
+                            }
+                            EditorGUILayout.EndHorizontal();
+
+                            EditorGUILayout.LabelField(expressionList[j]);
+                        }
+                        if (GUILayout.Button("添加新条目", "miniButton", GUILayout.Width(80)))
+                        {
+                            Debug.Log("添加新条目");
+                        }
                     }
                     EditorGUILayout.LabelField(oldStr);
                     EditorGUILayout.EndVertical();
-                    //string numberDiscribe = "";
-                    //for (int j = 1; j <= 10; j++)
-                    //{
-                    //    numberDiscribe = string.Format("第{0}项", j);
-                    //    EditorGUILayout.LabelField(numberDiscribe, GUILayout.Width(80));
-                    //}
-                    //EditorGUILayout.EndHorizontal();
-
-                    //EditorGUILayout.BeginHorizontal();
-                    //EditorGUILayout.LabelField("", GUILayout.Width(80));
-
-                    //oldStr = m_selectedData[i].ToString();
-                    //string[] fields = oldStr.Split('#');
-                    //string[] tempFields = new string[10];
-                    //for (int j = 0; j < 10; j++)
-                    //{
-                    //    if (j < fields.Length)
-                    //        tempFields[j] = fields[j];
-                    //    else
-                    //        tempFields[j] = "";
-                    //    tempFields[j] = EditorGUILayout.TextField(tempFields[j], GUILayout.Width(80));
-                    //}
-                    //if (fields[0] != null)
-                    //{
-                    //    for (int j = 0; j < 10; j++)
-                    //    {
-                    //        if (tempFields[j] != null && tempFields[j].Equals("") == false)
-                    //        {
-                    //            if (j == 0)
-                    //                curStr += tempFields[j];
-                    //            else
-                    //                curStr += ("#" + tempFields[j]);
-                    //        }
-                    //    }
-                    //}
-                    //m_selectedData[i] = curStr;
-                    //if (curStr.CompareTo(oldStr) != 0)
-                    //{
-                    //    m_TreeView.UpdateContent(i, m_selectedData[i].ToString());
-                    //}
-                    //EditorGUILayout.EndHorizontal();
                 }
                 GUILayout.EndArea();
                 GUI.EndScrollView();
             }
+        }
 
-            //GUILayout.BeginArea(expressionZoneRect);
-            ////EditorGUILayout.BeginHorizontal();
-            //EditorGUILayout.BeginVertical(Styles.categoryBox);
-            ////EditorGUILayout.BeginFadeGroup(1.0f);
-            //fold = EditorGUILayout.Foldout(fold, "这是一个折叠文本");
-            //if (fold)
-            //{
-            //    EditorGUILayout.LabelField("自由和谐民主富强");
-            //    EditorGUILayout.LabelField("自由和谐民主富强");
-            //    EditorGUILayout.LabelField("自由和谐民主富强");
-            //}
-            //EditorGUILayout.LabelField("自由和谐民主富强自由和谐民主富强自由和谐民主富强");
-            //EditorGUILayout.EndVertical();
-            ////EditorGUILayout.EndFadeGroup();
-            ////EditorGUILayout.EndHorizontal();
-            //GUILayout.EndArea();
+        struct ExpressionClickInfo {
+            public int index;   //字段index
+            public int expressionIndex; //表达式index
+            public string oldPartStr; //旧内容
+            public string newPartStr; //新内容
+        }
+
+        private void TargetCallBack(object obj)
+        {
+            var clickInfo = (ExpressionClickInfo)obj;
+            var oldStr = m_selectedData[clickInfo.index].ToString();
+            bool bHaveFormula = (oldStr[0] == '\"');
+            if (bHaveFormula == true)
+            {
+                oldStr = oldStr.TrimStart('\"');
+                oldStr = oldStr.TrimEnd('\"');
+            }
+            var expressionList = oldStr.Split('#');
+            var expressionStr = expressionList[clickInfo.expressionIndex];
+            //原本没有目标
+            if (clickInfo.oldPartStr.Equals(""))
+            {
+                expressionStr = string.Concat(clickInfo.newPartStr, ".",expressionStr);
+            }
+            else
+            {
+                expressionStr = expressionStr.Replace(clickInfo.oldPartStr, clickInfo.newPartStr);
+                if (clickInfo.newPartStr.Equals(""))
+                    expressionStr = expressionStr.TrimStart('.');
+            }
+            expressionList[clickInfo.expressionIndex] = expressionStr;
+            string newStr = "";
+            for (int i = 0; i < expressionList.Length; i++)
+            {
+                if (i != 0)
+                {
+                    newStr = string.Concat(newStr, "#", expressionList[i]);
+                }
+                else
+                {
+                    newStr = string.Concat(newStr, expressionList[i]);
+                }
+            }
+            if (bHaveFormula)
+            {
+                newStr = string.Concat("\"", newStr, "\"");
+            }
+            m_selectedData[clickInfo.index] = newStr;
+            m_TreeView.UpdateContent(clickInfo.index, m_selectedData[clickInfo.index].ToString());
+        }
+
+        private void ExpressionCallBack(object obj)
+        {
+            var clickInfo = (ExpressionClickInfo)obj;
+            var oldStr = m_selectedData[clickInfo.index].ToString();
+            var expressionList = oldStr.Split('#');
+            var expressionStr = expressionList[clickInfo.expressionIndex];
+            expressionStr = expressionStr.Replace(clickInfo.oldPartStr, clickInfo.newPartStr);
+            expressionList[clickInfo.expressionIndex] = expressionStr;
+            string newStr = "";
+            for (int i = 0; i < expressionList.Length; i++)
+            {
+                if (i != 0)
+                {
+                    newStr = string.Concat(newStr, "#", expressionList[i]);
+                }
+                else
+                {
+                    newStr = string.Concat(newStr, expressionList[i]);
+                }
+            }
+            m_selectedData[clickInfo.index] = newStr;
+            m_TreeView.UpdateContent(clickInfo.index, m_selectedData[clickInfo.index].ToString());
         }
 
         #endregion

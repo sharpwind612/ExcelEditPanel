@@ -153,6 +153,11 @@ namespace EditorTool
                                     data.Columns.Add(column);
                                 }
                             }
+                            else
+                            {
+                                DataColumn column = new DataColumn("");
+                                data.Columns.Add(column);
+                            }
                         }
                         startRow = sheet.FirstRowNum;
                     }
