@@ -802,7 +802,7 @@ namespace UnityEditor.ExcelTreeView
                             //找到关键字符的index
                             int dotIndex = str.IndexOf('.');
                             int leftBracketIndex = str.IndexOf('(');
-                            int rightBracketIndex = str.IndexOf(')');
+                            int rightBracketIndex = str.LastIndexOf(')');
                             EditorGUILayout.BeginHorizontal();
                             //类型下拉框选择
                             string targetTypeStr = "";
@@ -836,21 +836,21 @@ namespace UnityEditor.ExcelTreeView
                                 EditorGUILayout.LabelField("未知目标类型:" + targetTypeStr, GUILayout.Width(150));
                             }
                             //函数类型选择
-                            string expressionStr = "";
+                            string functionStr = "";
                             if (dotIndex != -1)
                             {
-                                expressionStr = str.Substring(dotIndex + 1, leftBracketIndex - dotIndex - 1);
+                                functionStr = str.Substring(dotIndex + 1, leftBracketIndex - dotIndex - 1);
                             }
                             else
                             {
-                                expressionStr = str.Substring(0, leftBracketIndex);
+                                functionStr = str.Substring(0, leftBracketIndex);
                                 if (bHaveFormula)
-                                    expressionStr = expressionStr.TrimStart('\"');
+                                    functionStr = functionStr.TrimStart('\"');
                             }
 
-                            if (m_expressionTypeDict.ContainsKey(expressionStr))
+                            if (m_expressionTypeDict.ContainsKey(functionStr))
                             {
-                                if (EditorGUILayout.DropdownButton(new GUIContent(m_expressionTypeDict[expressionStr].describe), FocusType.Passive, GUILayout.Width(100)))
+                                if (EditorGUILayout.DropdownButton(new GUIContent(m_expressionTypeDict[functionStr].describe), FocusType.Passive, GUILayout.Width(100)))
                                 {
                                     GenericMenu menu = new GenericMenu();
                                     foreach (KeyValuePair<string, ExpressionInfo> kvp in m_expressionTypeDict)
@@ -859,33 +859,97 @@ namespace UnityEditor.ExcelTreeView
                                         {
                                             index = i,
                                             expressionIndex = j,
-                                            oldPartStr = expressionStr,
-                                            newPartStr = kvp.Key
+                                            oldPartStr = functionStr,
+                                            newPartStr = kvp.Key,
                                         };
                                         menu.AddItem(new GUIContent(kvp.Value.describe), false, ExpressionCallBack, info);
                                     }
                                     menu.ShowAsContext();
                                 }
+                                //具体函数参数显示
+                                ExpressionInfo expressionInfo = m_expressionTypeDict[functionStr];
+                                GUIStyle style = new GUIStyle(EditorStyles.label);
+                                style.alignment = TextAnchor.MiddleRight;
+                                string paramStr = str.Substring(leftBracketIndex + 1, rightBracketIndex - leftBracketIndex - 1);
+                                string[] paramItem = SplitParamStr(paramStr);//paramStr.Split(',');
+                                for (int k = 0; k < expressionInfo.paramNumber; k++)
+                                {
+                                    EditorGUILayout.LabelField(expressionInfo.paramDescribe[k], style, GUILayout.Width(70));
+                                    if (paramItem[k].IndexOf('"') != -1)
+                                        paramItem[k] = GUILayout.TextField(paramItem[k], GUILayout.Width(120));
+                                    else
+                                        paramItem[k] = GUILayout.TextField(paramItem[k], GUILayout.Width(80));
+                                }
+                                //更改的参数写回
+                                ChangeParamStr(i, j, paramItem);
                             }
                             else
                             {
-                                EditorGUILayout.LabelField("未知函数类型:" + expressionStr, GUILayout.Width(200));
+                                EditorGUILayout.LabelField("未知函数类型:" + functionStr, GUILayout.Width(200));
                             }
-                            EditorGUILayout.EndHorizontal();
 
+                            EditorGUILayout.EndHorizontal();
                             EditorGUILayout.LabelField(expressionList[j]);
                         }
+
                         if (GUILayout.Button("添加新条目", "miniButton", GUILayout.Width(80)))
                         {
                             Debug.Log("添加新条目");
+                            AddNewExpression(i);
                         }
                     }
-                    EditorGUILayout.LabelField(oldStr);
+                    EditorGUILayout.LabelField(m_selectedData[i].ToString());
                     EditorGUILayout.EndVertical();
                 }
                 GUILayout.EndArea();
                 GUI.EndScrollView();
             }
+        }
+
+        //分割参数字符串，需要处理中间包含公式的情况
+        private string[] SplitParamStr(string paramStr)
+        {
+            string[] paramItem = paramStr.Split(',');
+            List<string> paramList = new List<string>();
+            int formulaStart = -1;
+            for (int i = 0; i < paramItem.Length; i++)
+            {
+                //如果处在一个公式中，找到下一个包含引号的分段
+                if (formulaStart != -1)
+                {
+                    if (paramItem[i].IndexOf('"') == -1)
+                    {
+                        continue;
+                    }
+                    //将formulaStart ~ i的字符串连接起来
+                    else
+                    {
+                        string tempStr = "";
+                        for (int j = formulaStart; j <= i; j++)
+                        {
+                            if (j != formulaStart)
+                                tempStr += ",";
+                            tempStr += paramItem[j];
+                        }
+                        paramList.Add(tempStr);
+                        formulaStart = -1;
+                    }
+                }
+                else
+                {
+                    //没有引号直接插入
+                    if (paramItem[i].IndexOf('"') == -1)
+                    {
+                        paramList.Add(paramItem[i]);
+                    }
+                    else
+                    {
+                        formulaStart = i;
+                        continue;
+                    }
+                }
+            }
+            return paramList.ToArray();
         }
 
         struct ExpressionClickInfo {
@@ -895,6 +959,7 @@ namespace UnityEditor.ExcelTreeView
             public string newPartStr; //新内容
         }
 
+        //目标类型变化的处理，不会修改是否含有公式
         private void TargetCallBack(object obj)
         {
             var clickInfo = (ExpressionClickInfo)obj;
@@ -919,6 +984,81 @@ namespace UnityEditor.ExcelTreeView
                     expressionStr = expressionStr.TrimStart('.');
             }
             expressionList[clickInfo.expressionIndex] = expressionStr;
+            UpdateExpression(clickInfo.index, expressionList, bHaveFormula);
+        }
+
+        //函数类型修改的处理，会导致参数变化，在ChangeParamStr中会处理公式判断
+        private void ExpressionCallBack(object obj)
+        {
+            var clickInfo = (ExpressionClickInfo)obj;
+            var oldStr = m_selectedData[clickInfo.index].ToString();
+            bool bHaveFormula = (oldStr[0] == '\"');
+            if (bHaveFormula == true)
+            {
+                oldStr = oldStr.TrimStart('\"');
+                oldStr = oldStr.TrimEnd('\"');
+            }
+            var expressionList = oldStr.Split('#');
+            var expressionStr = expressionList[clickInfo.expressionIndex];
+            expressionStr = expressionStr.Replace(clickInfo.oldPartStr, clickInfo.newPartStr);
+            //修改函数的话，将所有参数位置置空
+            expressionList[clickInfo.expressionIndex] = expressionStr;
+            UpdateExpression(clickInfo.index, expressionList, bHaveFormula);
+            if (clickInfo.oldPartStr != clickInfo.newPartStr)
+            {
+                ExpressionInfo expressionInfo = m_expressionTypeDict[clickInfo.newPartStr];
+                string[] paramItem = new string[expressionInfo.paramNumber];
+                for (int i = 0; i < expressionInfo.paramNumber; i++)
+                {
+                    paramItem[i] = "";
+                }
+                ChangeParamStr(clickInfo.index, clickInfo.expressionIndex, paramItem);
+            }
+        }
+
+        //参数类型的修改，每次需要重新检查是否有参数包含公式
+        private void ChangeParamStr(int index, int expressionIndex, string[] paramItem)
+        {
+            var oldStr = m_selectedData[index].ToString();
+            bool bHaveFormula = (oldStr[0] == '\"');
+            if (bHaveFormula == true)
+            {
+                oldStr = oldStr.TrimStart('\"');
+                oldStr = oldStr.TrimEnd('\"');
+            }
+            var expressionList = oldStr.Split('#');
+            var expressionStr = expressionList[expressionIndex];
+
+            int leftBracketIndex = expressionStr.IndexOf('(');
+            int rightBracketIndex = expressionStr.LastIndexOf(')');
+            string firstStr = expressionStr.Substring(0, leftBracketIndex + 1);
+            string lastStr = expressionStr.Substring(rightBracketIndex, expressionStr.Length - rightBracketIndex);
+            string paramStr = "";
+
+            for (int i = 0; i < paramItem.Length; i++)
+            {
+                if (i != 0)
+                {
+                    paramStr += ",";
+                }
+                paramStr += paramItem[i];
+            }
+            string result = string.Concat(firstStr, paramStr, lastStr);
+            expressionList[expressionIndex] = result;
+            //此处需要重新判断是否有任何一部分带有公式
+            bHaveFormula = false;
+            for (int i = 0; i < expressionList.Length; i++)
+            {
+                if (expressionList[i].IndexOf('"') != -1)
+                {
+                    bHaveFormula = true;
+                }
+            }
+            UpdateExpression(index, expressionList, bHaveFormula);
+        }
+
+        private void UpdateExpression(int index, string[] expressionList, bool bHaveFormula = false)
+        {
             string newStr = "";
             for (int i = 0; i < expressionList.Length; i++)
             {
@@ -935,32 +1075,26 @@ namespace UnityEditor.ExcelTreeView
             {
                 newStr = string.Concat("\"", newStr, "\"");
             }
-            m_selectedData[clickInfo.index] = newStr;
-            m_TreeView.UpdateContent(clickInfo.index, m_selectedData[clickInfo.index].ToString());
+            m_selectedData[index] = newStr;
+            m_TreeView.UpdateContent(index, m_selectedData[index].ToString());
         }
 
-        private void ExpressionCallBack(object obj)
+        private void AddNewExpression(int index)
         {
-            var clickInfo = (ExpressionClickInfo)obj;
-            var oldStr = m_selectedData[clickInfo.index].ToString();
-            var expressionList = oldStr.Split('#');
-            var expressionStr = expressionList[clickInfo.expressionIndex];
-            expressionStr = expressionStr.Replace(clickInfo.oldPartStr, clickInfo.newPartStr);
-            expressionList[clickInfo.expressionIndex] = expressionStr;
-            string newStr = "";
-            for (int i = 0; i < expressionList.Length; i++)
+            var oldStr = m_selectedData[index].ToString();
+            bool bHaveFormula = (oldStr[0] == '\"');
+            if (bHaveFormula == true)
             {
-                if (i != 0)
-                {
-                    newStr = string.Concat(newStr, "#", expressionList[i]);
-                }
-                else
-                {
-                    newStr = string.Concat(newStr, expressionList[i]);
-                }
+                oldStr = oldStr.TrimStart('\"');
+                oldStr = oldStr.TrimEnd('\"');
             }
-            m_selectedData[clickInfo.index] = newStr;
-            m_TreeView.UpdateContent(clickInfo.index, m_selectedData[clickInfo.index].ToString());
+            oldStr += "#target.add_hurt()";
+            if (bHaveFormula)
+            {
+                oldStr = string.Concat("\"", oldStr, "\"");
+            }
+            m_selectedData[index] = oldStr;
+            m_TreeView.UpdateContent(index, m_selectedData[index].ToString());
         }
 
         #endregion
