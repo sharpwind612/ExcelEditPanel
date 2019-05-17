@@ -734,9 +734,26 @@ namespace UnityEditor.ExcelTreeView
             get { return new Rect(20, 530, position.width - 40, position.height - 510 - 50f); }
             
         }
+
+        Rect m_expressionContentRect;
         Rect expressionContentRect
         {
-            get { return new Rect(20, 530, position.width - 70, position.height - 510 - 50f); }
+            get
+            {
+                if (m_expressionContentRect.Equals(Rect.zero))
+                {
+                    m_expressionContentRect = new Rect(20, 530, position.width - 60, position.height - 510 - 50f);
+                }
+                else
+                {
+                    m_expressionContentRect.width = position.width - 60;
+                }
+                return m_expressionContentRect;
+            }
+            set
+            {
+                m_expressionContentRect = value;
+            }
         }
         Vector2 expressionSp;
         List<bool> expFoldList;
@@ -749,6 +766,8 @@ namespace UnityEditor.ExcelTreeView
                 categoryBox.padding.left = 14;
             }
         }
+
+
 
         void DrawExpressionZone()
         {
@@ -765,22 +784,25 @@ namespace UnityEditor.ExcelTreeView
                     }
                 }
                 var contentRect = expressionContentRect;
-                contentRect.height = 300;
+                //contentRect.height = 300;
                 //contentRect.height = (m_expressionList.Count + 1) * 34;
                 //contentRect.width = 85 * 11;
                 expressionSp = GUI.BeginScrollView(expressionZoneRect, expressionSp, contentRect);
                 GUILayout.BeginArea(contentRect);
                 //EditorGUILayout.LabelField("animal count", zoo.animals.Count.ToString());
+                int rowCount = 0;
+                int itemCount = 0;
                 string name = "";
                 for (int i = 0; i < m_dataTable.Columns.Count; i++)
                 {
                     name = nameList[i];
                     string oldStr = "";
-                    string curStr = "";
+                    //string curStr = "";
                     if (m_expressionDict.ContainsKey(name) == false)
                     {
                         continue;
                     }
+                    itemCount++;
                     var fieldInfo = m_fieldDict[name];
                     //EditorGUILayout.BeginHorizontal();
                     oldStr = m_selectedData[i].ToString();
@@ -792,6 +814,7 @@ namespace UnityEditor.ExcelTreeView
                         oldStr = oldStr.TrimEnd('\"');
                     }
                     m_expressionDict[name] = EditorGUILayout.Foldout(m_expressionDict[name], fieldInfo.describe);
+                    rowCount++;
                     if (m_expressionDict[name])
                     {     
                         var expressionList = oldStr.Split('#');
@@ -803,6 +826,7 @@ namespace UnityEditor.ExcelTreeView
                             int dotIndex = str.IndexOf('.');
                             int leftBracketIndex = str.IndexOf('(');
                             int rightBracketIndex = str.LastIndexOf(')');
+                            rowCount++;
                             EditorGUILayout.BeginHorizontal();
                             //类型下拉框选择
                             string targetTypeStr = "";
@@ -888,20 +912,25 @@ namespace UnityEditor.ExcelTreeView
                                 EditorGUILayout.LabelField("未知函数类型:" + functionStr, GUILayout.Width(200));
                             }
 
-                            EditorGUILayout.EndHorizontal();
+                            EditorGUILayout.EndHorizontal();                           
                             EditorGUILayout.LabelField(expressionList[j]);
+                            rowCount++;
                         }
-
+                        
                         if (GUILayout.Button("添加新条目", "miniButton", GUILayout.Width(80)))
                         {
                             Debug.Log("添加新条目");
                             AddNewExpression(i);
                         }
+                        rowCount++;
                     }
                     EditorGUILayout.LabelField(m_selectedData[i].ToString());
+                    rowCount++;
                     EditorGUILayout.EndVertical();
                 }
                 GUILayout.EndArea();
+                contentRect.height = rowCount * 18 + itemCount * 6;
+                expressionContentRect = contentRect;
                 GUI.EndScrollView();
             }
         }
