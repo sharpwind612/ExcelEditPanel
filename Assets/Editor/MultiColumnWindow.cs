@@ -899,10 +899,54 @@ namespace UnityEditor.ExcelTreeView
                                 for (int k = 0; k < expressionInfo.paramNumber; k++)
                                 {
                                     EditorGUILayout.LabelField(expressionInfo.paramDescribe[k], style, GUILayout.Width(70));
-                                    if (paramItem[k].IndexOf('"') != -1)
-                                        paramItem[k] = GUILayout.TextField(paramItem[k], GUILayout.Width(120));
+                                    //判断该字段是否指定了枚举
+                                    int paramType = expressionInfo.paramType[k];
+                                    if (paramType != 0 && m_paramEnumDict.ContainsKey(paramType))
+                                    {
+                                        Dictionary<int, EnumInfo> enumDict = m_paramEnumDict[paramType];
+                                        int enumId = paramItem[k].Equals("") ? -1 : int.Parse(paramItem[k]);
+                                        string content = "";
+                                        if (enumDict.ContainsKey(enumId))
+                                        {
+                                            content = enumDict[enumId].value;
+                                        }
+                                        else
+                                        {
+                                            content = "未知枚举类型" + paramItem[k];
+                                        }
+
+                                        if (EditorGUILayout.DropdownButton(new GUIContent(content), FocusType.Passive, GUILayout.Width(120)))
+                                        {
+                                            GenericMenu menu = new GenericMenu();
+                                            foreach (KeyValuePair<int, EnumInfo> kvp in enumDict)
+                                            {
+                                                var info = new ParamClickInfo
+                                                {
+                                                    index = i,
+                                                    expressionIndex = j,
+                                                    paramIndex = k
+                                                };
+                                                menu.AddItem(new GUIContent(kvp.Value.value), false, (obj) =>
+                                                {
+                                                    var paramClickInfo = (ParamClickInfo)obj;
+                                                    paramItem[paramClickInfo.paramIndex] = kvp.Key.ToString();
+                                                    ChangeParamStr(paramClickInfo.index, paramClickInfo.expressionIndex, paramItem);
+                                                }, info);
+                                            }
+                                            menu.ShowAsContext();
+                                        }
+                                        //else
+                                        //{
+                                        //    EditorGUILayout.LabelField("未知枚举类型:" + paramItem[k], GUILayout.Width(100));
+                                        //}
+                                    }
                                     else
-                                        paramItem[k] = GUILayout.TextField(paramItem[k], GUILayout.Width(80));
+                                    {
+                                        if (paramItem[k].IndexOf('"') != -1)
+                                            paramItem[k] = GUILayout.TextField(paramItem[k], GUILayout.Width(120));
+                                        else
+                                            paramItem[k] = GUILayout.TextField(paramItem[k], GUILayout.Width(80));
+                                    }
                                 }
                                 //更改的参数写回
                                 ChangeParamStr(i, j, paramItem);
@@ -912,8 +956,19 @@ namespace UnityEditor.ExcelTreeView
                                 EditorGUILayout.LabelField("未知函数类型:" + functionStr, GUILayout.Width(200));
                             }
 
-                            EditorGUILayout.EndHorizontal();                           
+                            EditorGUILayout.EndHorizontal();
+
+                            EditorGUILayout.BeginHorizontal();
+                            if (j != 0)
+                            {
+                                if (GUILayout.Button("删除", "miniButton", GUILayout.Width(40)))
+                                {
+                                    Debug.Log("删除条目:" + j);
+                                    DeleteExpression(i,j);
+                                }
+                            }
                             EditorGUILayout.LabelField(expressionList[j]);
+                            EditorGUILayout.EndHorizontal();
                             rowCount++;
                         }
                         
@@ -1045,6 +1100,13 @@ namespace UnityEditor.ExcelTreeView
             }
         }
 
+        struct ParamClickInfo
+        {
+            public int index;   //字段index
+            public int expressionIndex; //表达式index
+            public int paramIndex; //参数index
+        }
+
         //参数类型的修改，每次需要重新检查是否有参数包含公式
         private void ChangeParamStr(int index, int expressionIndex, string[] paramItem)
         {
@@ -1056,6 +1118,10 @@ namespace UnityEditor.ExcelTreeView
                 oldStr = oldStr.TrimEnd('\"');
             }
             var expressionList = oldStr.Split('#');
+            if (expressionIndex >= expressionList.Length)
+            {
+                return;
+            }
             var expressionStr = expressionList[expressionIndex];
 
             int leftBracketIndex = expressionStr.IndexOf('(');
@@ -1125,6 +1191,32 @@ namespace UnityEditor.ExcelTreeView
             m_selectedData[index] = oldStr;
             m_TreeView.UpdateContent(index, m_selectedData[index].ToString());
         }
+
+        private void DeleteExpression(int index, int paramIndex)
+        {
+            if (index == 0)
+            {
+                return;
+            }
+            var oldStr = m_selectedData[index].ToString();
+            bool bHaveFormula = (oldStr[0] == '\"');
+            if (bHaveFormula == true)
+            {
+                oldStr = oldStr.TrimStart('\"');
+                oldStr = oldStr.TrimEnd('\"');
+            }
+            var expressionList = oldStr.Split('#');
+            List<string> newExpressionList = new List<string>();
+            for (int i = 0; i < expressionList.Length; i++)
+            {
+                if (i != paramIndex)
+                {
+                    newExpressionList.Add(expressionList[i]);
+                }
+            }
+            UpdateExpression(index, newExpressionList.ToArray(), bHaveFormula);
+        }
+        
 
         #endregion
     }
